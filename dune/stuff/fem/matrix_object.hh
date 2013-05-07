@@ -136,7 +136,7 @@ public:
   //! add value to matrix entry
   void add( int localRow, int localCol, const DofType value )
   {
-    assert(!std::is_nan(value));
+    assert(!std::isnan(value));
     index_checks(localRow, localCol);
     matrix_.add(rowMapper_[ localRow ], colMapper_[ localCol ],value);
   }
@@ -151,7 +151,7 @@ public:
   //! set matrix entry to value
   void set( int localRow, int localCol, const DofType value )
   {
-    assert(!std::is_nan(value));
+    assert(!std::isnan(value));
     index_checks(localRow, localCol);
     matrix_.set( rowMapper_[ localRow ], colMapper_[ localCol ], value );
   }
