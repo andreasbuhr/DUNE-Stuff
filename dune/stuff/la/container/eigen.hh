@@ -183,7 +183,7 @@ public:
 
   void unitCol(const size_t col)
   {
-      for(size_t row : DSC::valueRange(rows()))
+      for(size_t row : valueRange(rows()))
       {
           if(row == col)
             set(row, col, ElementType(1));
