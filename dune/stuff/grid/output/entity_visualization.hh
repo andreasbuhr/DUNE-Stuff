@@ -1,7 +1,6 @@
 #ifndef DUNE_STUFF_GRID_ENTITY_VISUALIZATION_HH
 #define DUNE_STUFF_GRID_ENTITY_VISUALIZATION_HH
 
-#include <dune/grid/io/file/dgfparser/dgfgridtype.hh>
 #include <dune/grid/io/file/dgfparser/dgfparser.hh>
 #include <dune/stuff/common/filesystem.hh>
 #include <dune/stuff/aliases.hh>
@@ -38,6 +37,8 @@ struct ElementVisualization {
           mapper(grid);
 
       std::vector<double> values(mapper.size());
+      auto dim = 2;
+      std::vector<int> vertexdata(gridView.indexSet().size(dim),dim);
       for (const auto& entity : DSC::viewRange(gridView))
       {
         values[mapper.map(entity)] = f(entity);
@@ -45,8 +46,9 @@ struct ElementVisualization {
 
       Dune::VTKWriter<typename Grid::LeafGridView> vtkwriter(gridView);
       vtkwriter.addCellData(values,"data");
+      vtkwriter.addVertexData(vertexdata,"vertexdata");
       DSC::testCreateDirectory( f.filename() );
-      vtkwriter.write( f.filename().c_str(), Dune::VTK::base64);
+      vtkwriter.pwrite( "visualization",  f.filename(), "piecefiles", Dune::VTK::base64);
     }
 
 
@@ -182,11 +184,11 @@ struct ElementVisualization {
               const std::string outputDir = "visualisation" )
     {
         // make function objects
-        BoundaryFunctor boundaryFunctor( outputDir + std::string("/boundaryFunctor") );
-        AreaMarker areaMarker( outputDir + std::string("/areaMarker") );
-        GeometryFunctor geometryFunctor( outputDir + std::string("/geometryFunctor") );
-        ProcessIdFunctor processIdFunctor( outputDir + std::string("/ProcessIdFunctor"), mpiHelper );
-        VolumeFunctor volumeFunctor( outputDir + std::string("/volumeFunctor") );
+        BoundaryFunctor boundaryFunctor("boundaryFunctor");
+        AreaMarker areaMarker("areaMarker");
+        GeometryFunctor geometryFunctor("geometryFunctor");
+        ProcessIdFunctor processIdFunctor("ProcessIdFunctor", mpiHelper );
+        VolumeFunctor volumeFunctor("volumeFunctor");
 
         // call the visualization functions
         elementdata( grid, areaMarker );
