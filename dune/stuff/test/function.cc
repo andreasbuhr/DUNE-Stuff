@@ -1,114 +1,215 @@
 #include "test_common.hh"
 
+#include <memory>
+
 #include <dune/common/exceptions.hh>
 #include <dune/common/shared_ptr.hh>
 
-#include <dune/stuff/function.hh>
+#include <dune/stuff/function/interface.hh>
+#include <dune/stuff/function/expression.hh>
+#include <dune/stuff/function/checkerboard.hh>
+#include <dune/stuff/function/spe10.hh>
+#include <dune/stuff/function/constant.hh>
+#include <dune/stuff/function/affineparametric/checkerboard.hh>
+#include <dune/stuff/function/fixed.hh>
+
 
 using namespace Dune::Stuff;
 
-typedef testing::Types< FunctionExpression< double, 1, double, 1 >,
-                        FunctionCheckerboard< double, 1, double, 1 > > NonparametricFunctions;
 
-typedef testing::Types< FunctionAffineParametricCheckerboard< double, 1, double, 1 >,
-                        FunctionAffineParametricDefault< double, 1, double, 1 > > SeparableFunctions;
+typedef testing::Types< FunctionExpression< double, 1, double, 1 >
+                      , FunctionCheckerboard< double, 1, double, 1 >
+                      , FunctionCheckerboard< double, 2, double, 1 >
+                      , FunctionCheckerboard< double, 3, double, 1 >
+                      , FunctionConstant< double, 1, double, 1 >
+                      , FunctionConstant< double, 2, double, 1 >
+                      , FunctionConstant< double, 3, double, 1 >
+//                      , FunctionSpe10Model1< double, 2, double, 1 > // <- this makes only sense, if the data file is present
+                      > Functions;
 
+typedef testing::Types< AffineParametricFunctionCheckerboard< double, 1, double >
+                      , AffineParametricFunctionCheckerboard< double, 2, double >
+                      , AffineParametricFunctionCheckerboard< double, 3, double >
+                      > AffineParametricFunctions;
 
-template< class T >
-struct NonparametricTest
+typedef testing::Types< FunctionConstant< double, 1, double, 1 >
+                      , FunctionConstant< double, 2, double, 1 >
+                      , FunctionConstant< double, 3, double, 1 >
+                      > TimedependentFunctions;
+
+template< class FunctionType >
+struct FunctionTest
   : public ::testing::Test
 {
-  typedef T FunctionType;
   typedef typename FunctionType::DomainFieldType  DomainFieldType;
   static const int                                dimDomain = FunctionType::dimDomain;
   typedef typename FunctionType::DomainType       DomainType;
   typedef typename FunctionType::RangeFieldType   RangeFieldType;
-  static const int                                dimRange = FunctionType::dimRange;
+  static const int                                dimRangeRows = FunctionType::dimRangeRows;
+  static const int                                dimRangeCols = FunctionType::dimRangeCols;
   typedef typename FunctionType::RangeType        RangeType;
-  typedef FunctionInterface< DomainFieldType, dimDomain, RangeFieldType, dimRange > InterfaceType;
 
   void check() const
   {
-    const std::unique_ptr< InterfaceType > function(
-          Functions< DomainFieldType, dimDomain,
-                          RangeFieldType, dimRange >::create(FunctionType::id(),
-                                                             FunctionType::createSampleDescription()));
     DomainType x(1);
-    RangeType ret;
-    if (function->parametric())
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: nonparametric function returned parametric() == true");
+    RangeType ret(0);
+    const std::shared_ptr< const FunctionType >
+        function(FunctionType::create(FunctionType::createSampleDescription()));
     const std::string DUNE_UNUSED(name) = function->name();
     const int DUNE_UNUSED(order) = function->order();
     function->evaluate(x, ret);
   }
-};
+}; // struct FunctionTest
 
 
-template< class T >
-struct SeparableTest
+template< class FunctionType >
+struct ParametricFunctionTest
   : public ::testing::Test
 {
-  typedef T FunctionType;
   typedef typename FunctionType::DomainFieldType  DomainFieldType;
   static const int                                dimDomain = FunctionType::dimDomain;
   typedef typename FunctionType::DomainType       DomainType;
   typedef typename FunctionType::RangeFieldType   RangeFieldType;
-  static const int                                dimRange = FunctionType::dimRange;
+  static const int                                dimRangeRows = FunctionType::dimRangeRows;
+  static const int                                dimRangeCols = FunctionType::dimRangeCols;
   typedef typename FunctionType::RangeType        RangeType;
+  typedef typename FunctionType::ParamFieldType   ParamFieldType;
+  static const int                                maxParamDim = FunctionType::maxParamDim;
+  typedef typename FunctionType::ParamType        ParamType;
 
-  typedef FunctionInterface< DomainFieldType, dimDomain, RangeFieldType, dimRange >               InterfaceType;
-  typedef FunctionAffineParametricDefault< DomainFieldType, dimDomain, RangeFieldType, dimRange > DefaultType;
-
-  typedef Common::Parameter::FieldType ParamFieldType;
-  static const int                                  maxParamDim = Common::Parameter::maxDim;
-  typedef Common::Parameter::Type      ParamType;
+  typedef FunctionFixedParameter< DomainFieldType, dimDomain, RangeFieldType, dimRangeRows, dimRangeCols >
+    FixedParameterFunctionType;
 
   void check() const
   {
-    const std::unique_ptr< InterfaceType > function(
-          FunctionType::create(FunctionType::createSampleDescription()));
-    if (!function->parametric())
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: separable function returned parametric() == false!");
-    if (!function->affineparametric())
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: separable function returned affineparametric() == false!");
-    const std::string name = function->name();
-    const int order = function->order();
-    const size_t paramSize = function->paramSize();
-    ParamType mu(paramSize);
-    const std::vector< ParamType > paramRange = function->paramRange();
-    if (paramRange.size() != 2)
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: paramRange() has wrong size!");
-    if (paramRange[0].size() != paramSize)
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: paramRange()[0] has wrong size!");
-    if (paramRange[1].size() != paramSize)
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: paramRange()[1] has wrong size!");
-    for (size_t pp = 0; pp < paramSize; ++pp)
-      mu[pp] = paramRange[0][pp] + 0.5*(paramRange[1][pp] - paramRange[0][pp]);
     DomainType x(1);
-    RangeType ret;
-    function->evaluate(x, mu, ret);
+    RangeType ret(0);
+    const std::shared_ptr< const FunctionType >
+        function(FunctionType::create(FunctionType::createSampleDescription()));
+    const std::string DUNE_UNUSED(name) = function->name();
+    const int DUNE_UNUSED(order) = function->order();
+    const bool parametric = function->parametric();
+    assert(parametric);
+    const size_t paramSize = function->paramSize();
+    assert(paramSize > 0);
+    const std::vector< ParamType >& paramRange = function->paramRange();
+    assert(paramRange.size() == 2);
+    assert(paramRange[0].size() == paramSize);
+    assert(paramRange[1].size() == paramSize);
     const std::vector< std::string >& paramExplanation = function->paramExplanation();
-    if (paramExplanation.size() != paramSize)
-      DUNE_THROW(Dune::InvalidStateException, "ERROR: paramExplanation() has wrong size!");
-    DefaultType DUNE_UNUSED(separableDefault)(paramSize,
-                                              paramRange,
-                                              function->components(),
-                                              function->coefficients(),
-                                              paramExplanation,
-                                              order,
-                                              name);
+    assert(paramExplanation.size() == paramSize);
+    function->evaluate(x, paramRange[0], ret);
+    const FixedParameterFunctionType fixedFunction(function, paramRange[0]);
+    const std::string DUNE_UNUSED(f_name) = fixedFunction.name();
+    const int DUNE_UNUSED(f_order) = fixedFunction.order();
+    const bool f_parametric = fixedFunction.parametric();
+    assert(!f_parametric);
+    fixedFunction.evaluate(x, ret);
   }
-};
+}; // struct ParametricFunctionTest
 
 
-TYPED_TEST_CASE(NonparametricTest, NonparametricFunctions);
-TYPED_TEST(NonparametricTest, Nonparametric) {
+template< class FunctionType >
+struct AffineParametricFunctionTest
+  : public ::testing::Test
+{
+  typedef typename FunctionType::DomainFieldType  DomainFieldType;
+  static const int                                dimDomain = FunctionType::dimDomain;
+  typedef typename FunctionType::DomainType       DomainType;
+  typedef typename FunctionType::RangeFieldType   RangeFieldType;
+  static const int                                dimRangeRows = FunctionType::dimRangeRows;
+  static const int                                dimRangeCols = FunctionType::dimRangeCols;
+  typedef typename FunctionType::RangeType        RangeType;
+  typedef typename FunctionType::ParamFieldType   ParamFieldType;
+  static const int                                maxParamDim = FunctionType::maxParamDim;
+  typedef typename FunctionType::ParamType        ParamType;
+  typedef typename FunctionType::ComponentType    ComponentType;
+  typedef typename FunctionType::CoefficientType  CoefficientType;
+
+  void check() const
+  {
+    DomainType x(1);
+    RangeType ret(0);
+    const std::shared_ptr< const FunctionType >
+        function(FunctionType::create(FunctionType::createSampleDescription()));
+    const std::string DUNE_UNUSED(name) = function->name();
+    const int DUNE_UNUSED(order) = function->order();
+    const bool parametric = function->parametric();
+    assert(parametric);
+    const size_t paramSize = function->paramSize();
+    assert(paramSize > 0);
+    const std::vector< ParamType >& paramRange = function->paramRange();
+    assert(paramRange.size() == 2);
+    assert(paramRange[0].size() == paramSize);
+    assert(paramRange[1].size() == paramSize);
+    const std::vector< std::string >& paramExplanation = function->paramExplanation();
+    assert(paramExplanation.size() == paramSize);
+    function->evaluate(x, paramRange[0], ret);
+    const bool affineParametric = function->affineparametric();
+    assert(affineParametric);
+    const std::vector< std::shared_ptr< const ComponentType > >& components = function->components();
+    const std::vector< std::shared_ptr< const CoefficientType > >& coefficients = function->coefficients();
+    assert(components.size() == coefficients.size());
+    const bool hasAffinePart = function->hasAffinePart();
+    if (hasAffinePart)
+      const std::shared_ptr< ComponentType >& DUNE_UNUSED(affinePart) = function->affinePart();
+  }
+}; // struct AffineParametricFunctionTest
+
+
+template< class FunctionType >
+struct TimedependentFunctionTest
+  : public ::testing::Test
+{
+  typedef typename FunctionType::DomainFieldType  DomainFieldType;
+  static const int                                dimDomain = FunctionType::dimDomain;
+  typedef typename FunctionType::DomainType       DomainType;
+  typedef typename FunctionType::RangeFieldType   RangeFieldType;
+  static const int                                dimRangeRows = FunctionType::dimRangeRows;
+  static const int                                dimRangeCols = FunctionType::dimRangeCols;
+  typedef typename FunctionType::RangeType        RangeType;
+
+  typedef FunctionFixedTime< DomainFieldType, dimDomain, RangeFieldType, dimRangeRows, dimRangeCols >
+      FixedTimeFunctionType;
+
+  void check() const
+  {
+    DomainType x(1);
+    RangeType ret(0);
+    double t(0);
+    const std::shared_ptr< const FunctionType >
+        function(FunctionType::create(FunctionType::createSampleDescription()));
+    const std::string DUNE_UNUSED(name) = function->name();
+    const int DUNE_UNUSED(order) = function->order();
+    function->evaluate(x, t, ret);
+    const FixedTimeFunctionType fixedFunction(function, 0);
+    const std::string DUNE_UNUSED(f_name) = fixedFunction.name();
+    const int DUNE_UNUSED(f_order) = fixedFunction.order();
+    fixedFunction.evaluate(x, ret);
+  }
+}; // struct TimedependentFunctionTest
+
+
+TYPED_TEST_CASE(FunctionTest, Functions);
+TYPED_TEST(FunctionTest, Function) {
   this->check();
 }
 
 
-TYPED_TEST_CASE(SeparableTest, SeparableFunctions);
-TYPED_TEST(SeparableTest, Separable) {
+TYPED_TEST_CASE(ParametricFunctionTest, AffineParametricFunctions);
+TYPED_TEST(ParametricFunctionTest, ParametricFunction) {
+  this->check();
+}
+
+
+TYPED_TEST_CASE(AffineParametricFunctionTest, AffineParametricFunctions);
+TYPED_TEST(AffineParametricFunctionTest, AffineParametricFunction) {
+  this->check();
+}
+
+
+TYPED_TEST_CASE(TimedependentFunctionTest, TimedependentFunctions);
+TYPED_TEST(TimedependentFunctionTest, TimedependentFunction) {
   this->check();
 }
 
