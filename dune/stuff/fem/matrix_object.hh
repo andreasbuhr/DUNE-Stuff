@@ -406,19 +406,38 @@ public:
 };
 
 
-template< class DomainDiscreteFunctionType, class MatrixOperatorType >
+template <class EigenMapType>
+struct EigenMapForward {
+    EigenMapType& map_;
+
+    EigenMapForward(EigenMapType& m)
+        :map_(m)
+    {}
+
+    EigenMapType& backend() {
+        return map_;
+    }
+
+    const EigenMapType& backend() const{
+        return map_;
+    }
+};
+
+template< class DiscreteFunctionType, class MatrixType >
 class EigenInverseOperator {
+    typedef Eigen::Matrix<double,Eigen::Dynamic, 1> EigenVectorType;
+    typedef Eigen::Map<EigenVectorType> EigenVectorWrapperType;
+    typedef Eigen::Map<const EigenVectorType> ConstEigenVectorWrapperType;
+    typedef EigenMapForward<EigenVectorWrapperType> FwdType;
+    typedef EigenMapForward<const EigenVectorWrapperType> CFwdType;
 
-    typedef DSLC::EigenMappedDenseVector<typename DomainDiscreteFunctionType::RangeFieldType> EigenVectorWrapperType;
-    typedef typename MatrixOperatorType::MatrixType MatrixType;
-
-    const MatrixType& matrix_;
+    MatrixType& matrix_;
     double precision_;
 public:
 
   template < class... Args >
-  EigenInverseOperator( MatrixOperatorType& matrix_operator, const double /*reduction*/, const double solverEps, Args... )
-    : matrix_(matrix_operator.matrix())
+  EigenInverseOperator( MatrixType& matrix, const double /*reduction*/, const double solverEps, Args... )
+    : matrix_(matrix)
     , precision_(solverEps)
   {}
 
@@ -426,8 +445,10 @@ public:
   void operator()(const DomainVector& arg, RangeVector& x) const {
       EigenVectorWrapperType arg_w(const_cast<double*>(arg.leakPointer()), arg.size());
       EigenVectorWrapperType x_w(x.leakPointer(), x.size());
-      std::unique_ptr<DSLS::Interface<MatrixType, EigenVectorWrapperType>> solver(DSLS::create<MatrixType, EigenVectorWrapperType>("bicgstab"));
-      solver->apply(matrix_, arg_w, x_w, 5000, precision_);
+      FwdType x_fwd(x_w);
+     FwdType arg_fwd(arg_w);
+      std::unique_ptr<DSLS::Interface<MatrixType, FwdType>> solver(DSLS::create<MatrixType, FwdType>("bicgstab.diagonal"));
+      solver->apply(matrix_, arg_fwd, x_fwd, 5000, precision_);
   }
 };
 
