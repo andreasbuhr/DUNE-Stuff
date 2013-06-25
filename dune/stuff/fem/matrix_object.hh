@@ -185,9 +185,9 @@ private:
 
 };
 
-class LagrangePattern : public DSLC::SparsityPatternDefault {
+class LagrangePattern : public DSL::SparsityPatternDefault {
 
-    typedef DSLC::SparsityPatternDefault BaseType;
+    typedef DSL::SparsityPatternDefault BaseType;
 public:
     template< class D_FunctionSpace, class D_GridPart, int D_polOrder, template< class > class D_Storage,
               class R_FunctionSpace, class R_GridPart, int R_polOrder, template< class > class R_Storage>
@@ -260,7 +260,7 @@ public:
   typedef DomainSpace DomainSpaceType;
   typedef RangeSpace RangeSpaceType;
 
-  typedef DSLC::EigenRowMajorSparseMatrix< typename DomainSpace::RangeFieldType > MatrixType;
+  typedef DSL::EigenRowMajorSparseMatrix< typename DomainSpace::RangeFieldType > MatrixType;
   typedef MatrixType PreconditionMatrixType;
 
 private:
@@ -275,7 +275,7 @@ private:
 
   mutable MatrixType matrix_;
   bool preconditioning_;
-  const DSLC::SparsityPatternDefault& sparsity_pattern_;
+  const DSL::SparsityPatternDefault& sparsity_pattern_;
 
 public:
   //! type of local matrix
@@ -283,7 +283,7 @@ public:
 
   inline EigenMatrixObject( const DomainSpaceType& domainSpace,
                             const RangeSpaceType& rangeSpace,
-                            const DSLC::SparsityPatternDefault& sparsity_pattern )
+                            const DSL::SparsityPatternDefault& sparsity_pattern )
     : domainSpace_(domainSpace)
     , rangeSpace_(rangeSpace)
     , sequence_(-1)
@@ -390,7 +390,7 @@ public:
 
   EigenMatrixOperator ( const DomainSpaceType &domainSpace,
                             const RangeSpaceType &rangeSpace,
-                            const DSLC::SparsityPatternDefault& pattern )
+                            const DSL::SparsityPatternDefault& pattern )
   : Base( domainSpace, rangeSpace, pattern )
   {}
 
@@ -405,50 +405,40 @@ public:
   }
 };
 
-
 template <class EigenMapType>
 struct EigenMapForward {
     EigenMapType& map_;
 
-    EigenMapForward(EigenMapType& m)
-        :map_(m)
-    {}
-
-    EigenMapType& backend() {
-        return map_;
-    }
-
-    const EigenMapType& backend() const{
-        return map_;
-    }
-};
-
-template< class DiscreteFunctionType, class MatrixType >
+template< class DomainDiscreteFunctionType, class MatrixOperatorType >
 class EigenInverseOperator {
-    typedef Eigen::Matrix<double,Eigen::Dynamic, 1> EigenVectorType;
-    typedef Eigen::Map<EigenVectorType> EigenVectorWrapperType;
-    typedef Eigen::Map<const EigenVectorType> ConstEigenVectorWrapperType;
-    typedef EigenMapForward<EigenVectorWrapperType> FwdType;
-    typedef EigenMapForward<const EigenVectorWrapperType> CFwdType;
 
-    MatrixType& matrix_;
-    double precision_;
+    typedef DSL::EigenMappedDenseVector<typename DomainDiscreteFunctionType::RangeFieldType> EigenVectorWrapperType;
+    typedef typename MatrixOperatorType::MatrixType MatrixType;
+
+    const MatrixType& matrix_;
+    const Dune::ParameterTree& solver_settings_;
 public:
 
-  template < class... Args >
-  EigenInverseOperator( MatrixType& matrix, const double /*reduction*/, const double solverEps, Args... )
-    : matrix_(matrix)
-    , precision_(solverEps)
+  EigenInverseOperator( const MatrixOperatorType& matrix_operator, const Dune::ParameterTree& solver_settings )
+    : matrix_(matrix_operator.matrix())
+    , solver_settings_(solver_settings)
   {}
+
+  static Dune::ParameterTree defaultSettings()
+  {
+    auto settings = DSL::BicgstabILUTSolver<MatrixType, EigenVectorWrapperType>::defaultSettings();
+    settings["type"] = "bicgstab.ilut";
+    return settings;
+  }
 
   template <class DomainVector, class RangeVector>
   void operator()(const DomainVector& arg, RangeVector& x) const {
-      EigenVectorWrapperType arg_w(const_cast<double*>(arg.leakPointer()), arg.size());
+      const EigenVectorWrapperType arg_w(const_cast<double*>(arg.leakPointer()), arg.size());
       EigenVectorWrapperType x_w(x.leakPointer(), x.size());
-      FwdType x_fwd(x_w);
-     FwdType arg_fwd(arg_w);
-      std::unique_ptr<DSLS::Interface<MatrixType, FwdType>> solver(DSLS::create<MatrixType, FwdType>("bicgstab.diagonal"));
-      solver->apply(matrix_, arg_fwd, x_fwd, 5000, precision_);
+      typedef DSL::SolverInterface<MatrixType, EigenVectorWrapperType> SolverType;
+      std::unique_ptr<SolverType> solver(DSL::createSolver<MatrixType,
+                                                           EigenVectorWrapperType>(solver_settings_["type"]));
+      solver->apply(matrix_, arg_w, x_w, solver_settings_);
   }
 };
 
