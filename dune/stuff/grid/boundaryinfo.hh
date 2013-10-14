@@ -302,6 +302,34 @@ public:
     }
   }
 
+  void setFromParameterTree(const Dune::ParameterTree& _settings, const std::string subName = id())
+  {
+    // get correct _settings
+    Common::ExtendedParameterTree settings;
+    if (_settings.hasSub(subName))
+      settings = _settings.sub(subName);
+    else
+      settings = _settings;
+    // get default
+    const std::string def = settings.get("default", "dirichlet");
+    if (def == "dirichlet")
+      defaultIsDirichlet_ = true;
+    else if(def == "neumann")
+      defaultIsDirichlet_ = false;
+    else
+      DUNE_THROW(Dune::IOError,
+                 "\n" << Dune::Stuff::Common::colorStringRed("ERROR:")
+                 << " wrong 'default'' given!");
+    // get tolerance
+    tol_ = settings.get("compare_tolerance", 1e-10);
+
+    // get dirichlet and neumann
+    dirichletNormals_ = getVectors(settings, "dirichlet");
+    neumannNormals_ = getVectors(settings, "neumann");
+    // return
+    return;
+  }
+
   static ThisType* create(const Dune::ParameterTree& _settings, const std::string subName = id())
   {
     // get correct _settings
@@ -395,10 +423,10 @@ private:
     return false;
   }
 
-  const bool defaultIsDirichlet_;
+  bool defaultIsDirichlet_;
   std::vector< DomainType > dirichletNormals_;
   std::vector< DomainType > neumannNormals_;
-  const DomainFieldType tol_;
+  DomainFieldType tol_;
 }; // class GridboundaryNormalBased
 
 
