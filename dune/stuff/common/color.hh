@@ -143,6 +143,8 @@ std::string highlightSearchString(std::string str, std::string substr, int color
 } // namespace Stuff
 } // namespace Dune
 
+#include "color.cc"
+
 #endif // end of DUNE_COMMON_COLOR_HH
 
 /** Copyright (c) 2012, Stefan Girke
