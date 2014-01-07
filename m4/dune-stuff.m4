@@ -1,15 +1,15 @@
 AC_DEFUN([DUNE_STUFF_CHECKS],[
   AC_DEFINE([DUNE_STUFF_SSIZE_T], [long int], [We need this for the python bindings (there is no unsigned in python).])
 
-  AX_BOOST_BASE([1.48.0],
+  AX_BOOST_BASE([1.46.0],
                 [AC_DEFINE([HAVE_BOOST],
                            [],
                            [Define wether boost was found.])],
-                           [AC_MSG_ERROR([Boost 1.48 is required])])
-  AX_BOOST_FILESYSTEM([1.48.0])
-  AX_BOOST_SYSTEM([1.48.0])
-  AX_BOOST_TIMER([1.48.0])
-  AX_BOOST_CHRONO([1.48.0])
+                           [AC_MSG_ERROR([Boost 1.46 is required])])
+  AX_BOOST_FILESYSTEM([1.46.0])
+  AX_BOOST_SYSTEM([1.46.0])
+  AX_BOOST_TIMER([1.46.0])
+  AX_BOOST_CHRONO([1.46.0])
 
   AC_LANG([C++])
   AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
@@ -30,5 +30,5 @@ to the PKG_CONFIG_PATH environment variable.])])
 
 AC_DEFUN([DUNE_STUFF_CHECK_MODULE],
 [
-    DUNE_CHECK_MODULES([dune-stuff], [stuff/common/logging.hh], [Dune::Stuff::Common::Logger()])
+    DUNE_CHECK_MODULES([dune-stuff], [stuff/common/logging.hh])
 ])
